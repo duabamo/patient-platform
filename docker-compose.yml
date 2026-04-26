@@ -1,0 +1,93 @@
+version: "3.9"
+
+services:
+  # ---------- BASES DE DONNEES ----------
+  postgres-patient:
+    image: postgres:16-alpine
+    container_name: postgres-patient
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: patient_profile_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - patient_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d patient_profile_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - healthcare-net
+
+  postgres-reporting:
+    image: postgres:16-alpine
+    container_name: postgres-reporting
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: reporting_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - reporting_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d reporting_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - healthcare-net
+
+  # ---------- MICROSERVICES ----------
+  patient-profile-service:
+    build:
+      context: ./patient-profile-service
+      dockerfile: Dockerfile
+    container_name: patient-profile-service
+    restart: unless-stopped
+    depends_on:
+      postgres-patient:
+        condition: service_healthy
+    environment:
+      DATASOURCE_URL: jdbc:postgresql://postgres-patient:5432/patient_profile_db
+      DATASOURCE_USERNAME: postgres
+      DATASOURCE_PASSWORD: postgres
+      SPRING_PROFILES_ACTIVE: default
+    ports:
+      - "8081:8081"
+    networks:
+      - healthcare-net
+
+  reporting-service:
+    build:
+      context: ./reporting-service
+      dockerfile: Dockerfile
+    container_name: reporting-service
+    restart: unless-stopped
+    depends_on:
+      postgres-reporting:
+        condition: service_healthy
+      patient-profile-service:
+        condition: service_started
+    environment:
+      DATASOURCE_URL: jdbc:postgresql://postgres-reporting:5432/reporting_db
+      DATASOURCE_USERNAME: postgres
+      DATASOURCE_PASSWORD: postgres
+      PATIENT_PROFILE_URL: http://patient-profile-service:8081
+      SPRING_PROFILES_ACTIVE: default
+    ports:
+      - "8085:8085"
+    networks:
+      - healthcare-net
+
+volumes:
+  patient_pg_data:
+  reporting_pg_data:
+
+networks:
+  healthcare-net:
+    driver: bridge
