@@ -3,7 +3,7 @@ version: "3.9"
 services:
   # ---------- BASES DE DONNEES ----------
   postgres-patient:
-    image: postgres:16-alpine
+    image: postgres:16
     container_name: postgres-patient
     restart: unless-stopped
     environment:
@@ -23,7 +23,7 @@ services:
       - healthcare-net
 
   postgres-reporting:
-    image: postgres:16-alpine
+    image: postgres:16
     container_name: postgres-reporting
     restart: unless-stopped
     environment:
